@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 using WebApiAuth.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +21,8 @@ app.MapIdentityApi<IdentityUser>();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
