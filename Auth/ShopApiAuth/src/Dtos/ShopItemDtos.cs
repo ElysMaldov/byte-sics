@@ -29,7 +29,6 @@ public sealed record CreateItemDto
 
 public sealed record UpdateItemDto
 {
-  public required Guid Id { get; init; }
   public required string Name { get; init; }
   public required decimal PriceAmount { get; init; }
   public required int Quantity { get; init; }

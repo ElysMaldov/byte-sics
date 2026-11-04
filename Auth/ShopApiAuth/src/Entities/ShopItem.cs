@@ -29,3 +29,7 @@ public sealed record ShopItem
   }
 }
 
+public static class ShopItems
+{
+  public static readonly List<ShopItem> items = ShopItem.Generate();
+}

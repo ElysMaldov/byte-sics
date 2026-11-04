@@ -9,7 +9,7 @@ namespace ShopApiAuth.src.Controllers;
 [ApiController]
 public class ShopController : ControllerBase
 {
-    private readonly List<ShopItem> _items = ShopItem.Generate();
+    private readonly List<ShopItem> _items = ShopItems.items;
 
     // TODO add auth
 
