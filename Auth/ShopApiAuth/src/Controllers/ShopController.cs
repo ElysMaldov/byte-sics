@@ -1,5 +1,7 @@
-using Microsoft.AspNetCore.Http;
+using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
+using ShopApiAuth.src.Dtos;
+using ShopApiAuth.src.Entities;
 
 namespace ShopApiAuth.src.Controllers;
 
@@ -7,29 +9,134 @@ namespace ShopApiAuth.src.Controllers;
 [ApiController]
 public class ShopController : ControllerBase
 {
-    public IActionResult AddItem()
+    private readonly List<ShopItem> _items = ShopItem.Generate();
+
+    // TODO add auth
+
+    [HttpPost]
+    [Route("products")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public ActionResult<NewItemDto> AddItem([FromBody] CreateItemDto dto)
     {
-        throw new NotImplementedException();
+        // Should add mapping and validation, but no time for that right now
+
+        ShopItem newItem = new()
+        {
+            CreatedAt = DateTime.Now,
+            Name = dto.Name,
+            Price = new()
+            {
+                Amount = dto.PriceAmount,
+                CurrencyCode = dto.CurrencyCode
+            }
+        };
+
+        _items.Add(newItem);
+
+        return Created();
     }
 
-    public IActionResult GetItems()
+    [HttpGet]
+    [Route("products")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public ActionResult<IReadOnlyList<ItemDto>> GetItems()
     {
-        throw new NotImplementedException();
+        var dtos = _items.Select(item => new ItemDto()
+        {
+            CreatedAt = item.CreatedAt,
+            CurrencyCode = item.Price.CurrencyCode,
+            Id = item.Id,
+            PriceAmount = item.Price.Amount,
+            Name = item.Name,
+            Quantity = item.Quantity
+        }).ToList();
+
+        return dtos;
     }
 
-    public IActionResult GetItemById()
+    [HttpGet]
+    [Route("products/{id}")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult<ItemDto> GetItemById(string id)
     {
-        throw new NotImplementedException();
+        var item = FindItemById(new Guid(id));
+
+        if (item == null) return NotFound();
+
+        return new ItemDto()
+        {
+            CreatedAt = item.CreatedAt,
+            CurrencyCode = item.Price.CurrencyCode,
+            Id = item.Id,
+            PriceAmount = item.Price.Amount,
+            Name = item.Name,
+            Quantity = item.Quantity
+        };
     }
 
-    public IActionResult UpdateItem()
+    [HttpPut]
+    [Route("products/{id}")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult UpdateItem(string id, [FromBody] UpdateItemDto dto)
     {
-        throw new NotImplementedException();
+        var item = FindItemById(new Guid(id));
+
+        if (item == null) return NotFound();
+
+        int index = _items.FindIndex(i => i == item);
+
+        if (index >= 0)
+        {
+            _items[index] = item with
+            {
+
+                LastUpdate = DateTime.Now,
+                Name = dto.Name,
+                Quantity = dto.Quantity,
+                Price = item.Price with { Amount = dto.PriceAmount }
+            };
+        }
+
+        return NoContent();
     }
 
-    public IActionResult DeleteItemById()
+    [HttpDelete]
+    [Route("products/{id}")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult DeleteItemById(string id)
     {
-        throw new NotImplementedException();
+        var item = FindItemById(new Guid(id));
+
+        if (item == null) return NotFound();
+
+        int index = _items.FindIndex(i => i == item);
+
+        if (index >= 0)
+        {
+            _items.RemoveAt(index);
+        }
+
+        return NoContent();
+    }
+
+    private ShopItem? FindItemById(Guid id)
+    {
+        var item = _items.Find(i => i.Id.Equals(id));
+
+        return item;
     }
 }
 
