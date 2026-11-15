@@ -1,0 +1,57 @@
+#!/usr/bin/env bpftrace
+
+// Increase max string length from 64 bytes to 512 bytes so long SQL queries aren't cut off
+config = { max_strlen = 512 }
+
+BEGIN
+{
+    printf("Tracing SQLite queries... Hit Ctrl-C to stop.\n");
+}
+
+// 1. Capture the pointer where the db handle will be stored upon open
+uprobe:/home/elys/Development/byte-sics/Caching/CachingAuth/bin/Debug/net10.0/runtimes/linux-x64/native/libe_sqlite3.so:sqlite3_open,
+uprobe:/home/elys/Development/byte-sics/Caching/CachingAuth/bin/Debug/net10.0/runtimes/linux-x64/native/libe_sqlite3.so:sqlite3_open_v2
+{
+    @open_filename[tid] = str(arg0);
+    @open_ppdb[tid] = arg1;
+}
+
+// 2. When open returns, dereference ppDb to get the actual sqlite3* handle
+uretprobe:/home/elys/Development/byte-sics/Caching/CachingAuth/bin/Debug/net10.0/runtimes/linux-x64/native/libe_sqlite3.so:sqlite3_open,
+uretprobe:/home/elys/Development/byte-sics/Caching/CachingAuth/bin/Debug/net10.0/runtimes/linux-x64/native/libe_sqlite3.so:sqlite3_open_v2
+/@open_ppdb[tid]/
+{
+    // *(uint64 *) dereferences the pointer-to-pointer (sqlite3 **) to get (sqlite3 *)
+    $db_handle = *(uint64 *)@open_ppdb[tid];
+    @db_files[$db_handle] = @open_filename[tid];
+
+    delete(@open_filename[tid]);
+    delete(@open_ppdb[tid]);
+}
+
+// 3. Intercept SQL preparation and filter by the tracked filename
+uprobe:/home/elys/Development/byte-sics/Caching/CachingAuth/bin/Debug/net10.0/runtimes/linux-x64/native/libe_sqlite3.so:sqlite3_prepare_v2,
+uprobe:/home/elys/Development/byte-sics/Caching/CachingAuth/bin/Debug/net10.0/runtimes/linux-x64/native/libe_sqlite3.so:sqlite3_prepare_v3
+{
+    $db_handle = arg0;
+    $file = @db_files[$db_handle];
+
+    // Replace "store.db" with your target filename (or substring)
+    if (strcontains($file, "store.db")) {
+        printf("[%s:%d] (%s) -> %s\n", comm, pid, $file, str(arg1));
+    }
+}
+
+// 4. Clean up map memory when the database closes
+uprobe:/home/elys/Development/byte-sics/Caching/CachingAuth/bin/Debug/net10.0/runtimes/linux-x64/native/libe_sqlite3.so:sqlite3_close,
+uprobe:/home/elys/Development/byte-sics/Caching/CachingAuth/bin/Debug/net10.0/runtimes/linux-x64/native/libe_sqlite3.so:sqlite3_close_v2
+{
+    delete(@db_files[arg0]);
+}
+
+END
+{
+    clear(@open_filename);
+    clear(@open_ppdb);
+    clear(@db_files);
+}
